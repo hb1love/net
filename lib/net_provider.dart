@@ -1,51 +1,50 @@
-import 'package:http/http.dart';
-import 'package:net/http_method.dart';
-import 'package:net/interceptor.dart';
+import 'package:dio/dio.dart';
+import 'package:net/net_exception.dart';
 import 'package:net/net_request.dart';
-import 'package:net/net_response.dart';
 
 class NetProvider {
-  final Client _client;
-  final List<Interceptor> _interceptors;
+  static int connectTimeout = 5000;
+  static int receiveTimeout = 3000;
 
-  NetProvider(List<Interceptor> interceptors, [Client? client])
-      : _client = client ?? Client(),
-        _interceptors = interceptors;
+  late final Dio _dio;
 
-  Future<NetResponse> send(NetRequest req) async {
-    var request = _prepare(req);
-    var url = Uri();
-
-    late Response response;
-    switch (request.method) {
-      case HttpMethod.get:
-        response = await _client.get(url);
-        break;
-    }
-    var netResponse = NetResponse(response: response);
-    _didReceive(netResponse);
-    return _process(netResponse);
-  }
-
-  NetRequest _prepare(NetRequest originalRequest) {
-    var request = originalRequest;
-    for (var el in _interceptors) {
-      request = el.prepare(request);
-    }
-    return request;
-  }
-
-  void _didReceive(NetResponse originalResponse) {
-    for (var el in _interceptors) {
-      el.didReceive(originalResponse);
+  NetProvider(Dio? dio, {required List<Interceptor> interceptors}) {
+    _dio = dio ?? Dio()
+      ..options.connectTimeout = connectTimeout
+      ..options.receiveTimeout = receiveTimeout
+      ..httpClientAdapter
+      ..options.headers = {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'accept': '*/*'
+      };
+    if (interceptors.isNotEmpty) {
+      _dio.interceptors.addAll(interceptors);
     }
   }
 
-  NetResponse _process(NetResponse originalResponse) {
-    var response = originalResponse;
-    for (var el in _interceptors) {
-      response = el.process(response);
+  Future<T> send<T>(NetRequest netRequest,
+      T Function(Map<String, dynamic> fromJsonT)? fromJsonT) async {
+    try {
+      var response = await request(netRequest);
+      return fromJsonT != null
+          ? fromJsonT(response.data as Map<String, dynamic>)
+          : response.data;
+    } catch (e) {
+      throw NetException.fromObj(e);
     }
-    return response;
   }
+
+  Future<Response> request(NetRequest request) async {
+    return await _dio.requestUri(request.uri,
+        data: _getData(request), options: _getOptions(request));
+  }
+
+  dynamic _getData(NetRequest request) => request.body;
+
+  Options _getOptions(NetRequest request) => Options(
+      method: request.method.value,
+      headers: request.headers,
+      validateStatus: (status) {
+        return status != null ? status < 400 : false;
+      });
 }

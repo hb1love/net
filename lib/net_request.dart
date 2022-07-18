@@ -1,41 +1,25 @@
-import 'package:net/content_encoding.dart';
-import 'package:net/http_header.dart';
 import 'package:net/http_method.dart';
 
 abstract class NetRequest {
-  final List<HttpHeader> _additionalHeaders = [];
-
   String get baseUrl;
 
   String get path;
 
   HttpMethod get method;
 
-  Map<String, String> get headers;
+  Map<String, dynamic> get headers => {};
 
-  Map<String, String> get allHeaders {
-    Map<String, String> allHeaders = headers;
-    var additionalHeadersMap = {
-      for (var e in _additionalHeaders) e.key: e.value
-    };
-    allHeaders.addAll(additionalHeadersMap);
-    return allHeaders;
-  }
+  Map<String, dynamic> get body => {};
 
-  Map<String, dynamic> get parameters;
+  Map<String, dynamic> get queryParameters => {};
 
-  ContentEncoding get contentEncoding;
-
-  String get queryParameters {
-    if (method == HttpMethod.get && parameters.isNotEmpty) {
-      final jsonString = Uri(queryParameters: parameters);
+  String get _queryParameters {
+    if (queryParameters.isNotEmpty) {
+      final jsonString = Uri(queryParameters: queryParameters);
       return '?${jsonString.query}';
     }
-
     return '';
   }
 
-  void putAdditionalHeader(HttpHeader header) {
-    _additionalHeaders.add(header);
-  }
+  Uri get uri => Uri.parse('$baseUrl$path$_queryParameters');
 }
